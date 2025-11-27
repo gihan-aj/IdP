@@ -1,0 +1,38 @@
+services:
+  # 1. THE DATABASE
+  sql-db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: idp_sql_server
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=Strong!Passw0rd
+    ports:
+      - "1433:1433" # Allows you to connect using SSMS/Azure Data Studio on localhost,1433
+    networks:
+      - idp-network
+
+  # 2. YOUR IDENTITY PROVIDER
+  idp-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: idp_app
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - DOTNET_RUNNING_IN_CONTAINER=true
+      # IMPORTANT: "Server=sql-db" refers to the service name above!
+      - ConnectionStrings__DefaultConnection=Server=sql-db;Database=IdP_DB;User Id=sa;Password=Strong!Passw0rd;TrustServerCertificate=True;
+      # OpenIddict needs to know the URL it is accessed from (localhost:8080)
+      - ASPNETCORE_URLS=http://+:80
+    ports:
+      - "8080:80" # Map Host 8080 -> Container 80
+    depends_on:
+      - sql-db
+    networks:
+      - idp-network
+
+networks:
+  idp-network:
+    driver: bridge
+
+# docker compose up --build

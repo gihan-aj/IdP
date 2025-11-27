@@ -87,6 +87,11 @@ builder.Services.AddOpenIddict()
                .EnableTokenEndpointPassthrough()
                .EnableAuthorizationEndpointPassthrough()
                .EnableUserInfoEndpointPassthrough();
+
+        if (builder.Environment.IsDevelopment() || Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true")
+        {
+            options.UseAspNetCore().DisableTransportSecurityRequirement();
+        }
     })
     // C. Validation: Needed if this app also consumes tokens (e.g. UserInfo endpoint)
     .AddValidation(options =>

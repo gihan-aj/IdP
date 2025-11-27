@@ -1,6 +1,7 @@
 ﻿
 using IdP.Web.Infrastructure.Data;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using OpenIddict.Abstractions;
 
 namespace IdP.Web.Infrastructure.Worker
@@ -18,7 +19,7 @@ namespace IdP.Web.Infrastructure.Worker
         {
             using var scope = _serviceProvider.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            await context.Database.EnsureCreatedAsync(cancellationToken);
+            await context.Database.MigrateAsync(cancellationToken);
 
             var manager = scope.ServiceProvider.GetRequiredService<IOpenIddictApplicationManager>();
 
