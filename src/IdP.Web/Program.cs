@@ -1,5 +1,7 @@
+using IdP.Web.Infrastructure;
 using IdP.Web.Infrastructure.Data;
 using IdP.Web.Infrastructure.Worker;
+using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using OpenIddict.Abstractions;
@@ -99,6 +101,11 @@ builder.Services.AddOpenIddict()
         options.UseLocalServer();
         options.UseAspNetCore();
     });
+
+// CORS
+// =============================================================================
+builder.Services.AddCors();
+builder.Services.AddTransient<ICorsPolicyProvider, DynamicCorsPolicyProvider>();
 
 var app = builder.Build();
 
