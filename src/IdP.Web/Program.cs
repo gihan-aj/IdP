@@ -63,7 +63,8 @@ builder.Services.AddOpenIddict()
         // 1. Define the endpoints (matches ConnectController routes)
         options.SetAuthorizationEndpointUris("/connect/authorize")
                .SetTokenEndpointUris("/connect/token")
-               .SetUserInfoEndpointUris("/connect/userinfo");
+               .SetUserInfoEndpointUris("/connect/userinfo")
+               .SetEndSessionEndpointUris("/connect/logout");
 
         // 2. Define flows
         options.AllowAuthorizationCodeFlow()
@@ -74,7 +75,8 @@ builder.Services.AddOpenIddict()
         options.RegisterScopes(
             OpenIddictConstants.Scopes.Email,
             OpenIddictConstants.Scopes.Profile,
-            OpenIddictConstants.Scopes.Roles);
+            OpenIddictConstants.Scopes.Roles,
+            "ims_resource_server");
 
         // 4. Security (Dev only: Ephemeral keys)
         // IN PRODUCTION: Use .AddEncryptionCertificate() and .AddSigningCertificate()
@@ -88,7 +90,8 @@ builder.Services.AddOpenIddict()
                // instead of OpenIddict handling it automatically invisibly.
                .EnableTokenEndpointPassthrough()
                .EnableAuthorizationEndpointPassthrough()
-               .EnableUserInfoEndpointPassthrough();
+               .EnableUserInfoEndpointPassthrough()
+               .EnableEndSessionEndpointPassthrough();
 
         if (builder.Environment.IsDevelopment() || Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true")
         {
@@ -118,6 +121,8 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();
+
+app.UseCors();
 
 // Standard Routing
 app.UseRouting();

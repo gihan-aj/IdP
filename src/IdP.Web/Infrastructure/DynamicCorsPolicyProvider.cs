@@ -1,6 +1,7 @@
 ﻿using IdP.Web.Infrastructure.Data;
 using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using OpenIddict.EntityFrameworkCore.Models;
 
 namespace IdP.Web.Infrastructure
@@ -9,9 +10,9 @@ namespace IdP.Web.Infrastructure
     {
         private readonly CorsOptions _corsOptions;
         private readonly IServiceProvider _serviceProvider;
-        public DynamicCorsPolicyProvider(CorsOptions corsOptions, IServiceProvider serviceProvider)
+        public DynamicCorsPolicyProvider(IOptions<CorsOptions> corsOptions, IServiceProvider serviceProvider)
         {
-            _corsOptions = corsOptions;
+            _corsOptions = corsOptions.Value;
             _serviceProvider = serviceProvider;
         }
 

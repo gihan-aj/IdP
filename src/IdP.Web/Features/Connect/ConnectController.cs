@@ -2,6 +2,7 @@
 using IdP.Web.Infrastructure.Data;
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
@@ -208,6 +209,62 @@ namespace IdP.Web.Features.Connect
             }
 
             throw new NotImplementedException("The specified grant type is not implemented.");
+        }
+
+        [Authorize(AuthenticationSchemes = OpenIddictServerAspNetCoreDefaults.AuthenticationScheme)]
+        [HttpGet("~/connect/userinfo")]
+        [HttpPost("~/connect/userinfo")]
+        [IgnoreAntiforgeryToken]
+        [Produces("application/json")]
+        public async Task<IActionResult> Userinfo()
+        {
+            var user = await _userManager.GetUserAsync(User);
+            if (user is null)
+            {
+                var subject = User.FindFirst(Claims.Subject)?.Value;
+                if (!string.IsNullOrEmpty(subject))
+                {
+                    user = await _userManager.FindByIdAsync(subject);
+                }
+            }
+
+            if (user is null)
+            {
+                // Token is valid but the user it belongs to might have been deleted.
+                return Challenge(
+                    authenticationSchemes: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme,
+                    properties: new AuthenticationProperties(new Dictionary<string, string?>
+                    {
+                        [OpenIddictServerAspNetCoreConstants.Properties.Error] = Errors.InvalidToken,
+                        [OpenIddictServerAspNetCoreConstants.Properties.ErrorDescription] = "The specified access token is bound to an account that no longer exists."
+                    }));
+            }
+
+            // Create the JSON response based on the scopes the token has
+            var claims = new Dictionary<string, object>(StringComparer.Ordinal)
+            {
+                // 'sub' is mandatory in UserInfo response
+                [Claims.Subject] = await _userManager.GetUserIdAsync(user)
+            };
+
+            if (User.HasScope(Scopes.Email))
+            {
+                claims[Claims.Email] = await _userManager.GetEmailAsync(user) ?? "";
+                claims[Claims.EmailVerified] = await _userManager.IsEmailConfirmedAsync(user);
+            }
+
+            if (User.HasScope(Scopes.Profile))
+            {
+                claims[Claims.Name] = await _userManager.GetUserNameAsync(user) ?? "";
+                claims[Claims.PreferredUsername] = await _userManager.GetUserNameAsync(user) ?? "";
+            }
+
+            if (User.HasScope(Scopes.Roles))
+            {
+                claims[Claims.Role] = await _userManager.GetRolesAsync(user);
+            }
+
+            return Ok(claims);
         }
 
         // HELPER: Determines where claims live
