@@ -22,6 +22,9 @@ namespace IdP.Web.Infrastructure.Worker
             using var scope = _serviceProvider.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
+            // -------------------------------------------------------------------------
+            // 1. ROBUST MIGRATION STRATEGY
+            // -------------------------------------------------------------------------
             var retries = 10;
             while (retries > 0)
             {
@@ -54,61 +57,39 @@ namespace IdP.Web.Infrastructure.Worker
                 }
             }
 
-            var manager = scope.ServiceProvider.GetRequiredService<IOpenIddictApplicationManager>();
+            // -------------------------------------------------------------------------
+            // 2. SEEDING LOGIC
+            // -------------------------------------------------------------------------
+            var appManager = scope.ServiceProvider.GetRequiredService<IOpenIddictApplicationManager>();
+            var scopeManager = scope.ServiceProvider.GetRequiredService<IOpenIddictScopeManager>();
+            var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 
-            // 1. Machine-to-Machine Client (e.g., a backend service)
-            if (await manager.FindByClientIdAsync("console", cancellationToken) is null)
+            // A. SEED SCOPES (The "Resource Server" Definitions)
+            if(await scopeManager.FindByNameAsync("ims_resource_server", cancellationToken) is null)
             {
-                await manager.CreateAsync(new OpenIddictApplicationDescriptor
+                await scopeManager.CreateAsync(new OpenIddictScopeDescriptor
                 {
-                    ClientId = "console",
-                    ClientSecret = "console-secret",
-                    DisplayName = "Console App",
-                    Permissions =
+                    Name = "ims_resource_server",
+                    DisplayName = "IMS API",
+                    Description = "Access the Inventory management system.",
+                    Resources =
                     {
-                        OpenIddictConstants.Permissions.Endpoints.Token,
-                        OpenIddictConstants.Permissions.GrantTypes.ClientCredentials
+                        "ims_backend_api" // Optional: Validates the 'aud' claim for the resource server
                     }
                 }, cancellationToken);
             }
 
-            // 2. Interactive Client (e.g., React/Angular/Blazor)
-            if (await manager.FindByClientIdAsync("react-app", cancellationToken) is null)
+            // B. SEED CLIENTS
+
+            // 1. Angular/React Client
+            if (await appManager.FindByClientIdAsync("ims-angular-client", cancellationToken) is null)
             {
-                await manager.CreateAsync(new OpenIddictApplicationDescriptor
-                {
-                    ClientId = "react-app",
-                    // No Secret for PKCE Public Clients
-                    ConsentType = OpenIddictConstants.ConsentTypes.Explicit,
-                    DisplayName = "React Application",
-                    RedirectUris = { new Uri("https://localhost:3000/callback") },
-                    PostLogoutRedirectUris = { new Uri("https://localhost:3000/") },
-                    Permissions =
-                    {
-                        OpenIddictConstants.Permissions.Endpoints.Authorization,
-                        OpenIddictConstants.Permissions.Endpoints.EndSession,
-                        OpenIddictConstants.Permissions.Endpoints.Token,
-                        OpenIddictConstants.Permissions.GrantTypes.AuthorizationCode,
-                        OpenIddictConstants.Permissions.ResponseTypes.Code,
-                        OpenIddictConstants.Permissions.Scopes.Email,
-                        OpenIddictConstants.Permissions.Scopes.Profile,
-                        OpenIddictConstants.Permissions.Scopes.Roles
-                    },
-                    Requirements =
-                    {
-                        OpenIddictConstants.Requirements.Features.ProofKeyForCodeExchange
-                    }
-                }, cancellationToken);
-            }
-            
-            if (await manager.FindByClientIdAsync("ims-angular-client", cancellationToken) is null)
-            {
-                await manager.CreateAsync(new OpenIddictApplicationDescriptor
+                await appManager.CreateAsync(new OpenIddictApplicationDescriptor
                 {
                     ClientId = "ims-angular-client",
-                    // No Secret for PKCE Public Clients
                     ConsentType = OpenIddictConstants.ConsentTypes.Explicit,
-                    DisplayName = "IMS Angular Client",
+                    DisplayName = "Angular Client",
                     RedirectUris = { new Uri("http://localhost:4200/callback") },
                     PostLogoutRedirectUris = { new Uri("http://localhost:4200/") },
                     Permissions =
@@ -122,14 +103,13 @@ namespace IdP.Web.Infrastructure.Worker
 
                         OpenIddictConstants.Permissions.ResponseTypes.Code,
 
-                        OpenIddictConstants.Permissions.Scopes.Profile,
                         OpenIddictConstants.Permissions.Scopes.Email,
+                        OpenIddictConstants.Permissions.Scopes.Profile,
                         OpenIddictConstants.Permissions.Scopes.Roles,
-
                         OpenIddictConstants.Permissions.Prefixes.Scope + OpenIddictConstants.Scopes.OfflineAccess,
-
-                        // Allow accessing the IMS API and getting user profile info
-                        OpenIddictConstants.Permissions.Prefixes.Scope + "ims_resource_server",
+                    
+                        // Add the Custom Scope Permission using the prefix constant
+                        OpenIddictConstants.Permissions.Prefixes.Scope + "ims_resource_server"
                     },
                     Requirements =
                     {
@@ -138,11 +118,60 @@ namespace IdP.Web.Infrastructure.Worker
                 }, cancellationToken);
             }
 
-            if (await manager.FindByClientIdAsync("pos_client", cancellationToken) is null)
+            // 2. Postman Client
+            if (await appManager.FindByClientIdAsync("postman", cancellationToken) is null)
             {
-                await manager.CreateAsync(new OpenIddictApplicationDescriptor
+                await appManager.CreateAsync(new OpenIddictApplicationDescriptor
                 {
-                    ClientId = "pos_client",
+                    ClientId = "postman",
+                    ClientSecret = "postman-secret",
+                    DisplayName = "Postman",
+                    RedirectUris = { new Uri("https://oauth.pstmn.io/v1/callback") },
+                    Permissions =
+                    {
+                        OpenIddictConstants.Permissions.Endpoints.Authorization,
+                        OpenIddictConstants.Permissions.Endpoints.Token,
+                        OpenIddictConstants.Permissions.GrantTypes.AuthorizationCode,
+                        OpenIddictConstants.Permissions.GrantTypes.ClientCredentials,
+                        OpenIddictConstants.Permissions.ResponseTypes.Code,
+                        OpenIddictConstants.Permissions.Scopes.Email,
+                        OpenIddictConstants.Permissions.Scopes.Profile,
+                        OpenIddictConstants.Permissions.Scopes.Roles,
+                    
+                        // Allow Postman to test IMS scope too
+                        OpenIddictConstants.Permissions.Prefixes.Scope + "ims_resource_server"
+                    },
+                    Requirements =
+                    {
+                        OpenIddictConstants.Requirements.Features.ProofKeyForCodeExchange
+                    }
+                }, cancellationToken);
+            }
+
+            // 3. Console Client (M2M)
+            if (await appManager.FindByClientIdAsync("console", cancellationToken) is null)
+            {
+                await appManager.CreateAsync(new OpenIddictApplicationDescriptor
+                {
+                    ClientId = "console",
+                    ClientSecret = "console-secret",
+                    DisplayName = "Console App",
+                    Permissions =
+                {
+                    OpenIddictConstants.Permissions.Endpoints.Token,
+                    OpenIddictConstants.Permissions.GrantTypes.ClientCredentials,
+                    // Give machine access to IMS
+                    OpenIddictConstants.Permissions.Prefixes.Scope + "ims_resource_server"
+                }
+                }, cancellationToken);
+            }
+            
+
+            if (await appManager.FindByClientIdAsync("pos-client", cancellationToken) is null)
+            {
+                await appManager.CreateAsync(new OpenIddictApplicationDescriptor
+                {
+                    ClientId = "pos-client",
                     // No Secret for PKCE Public Clients
                     ConsentType = OpenIddictConstants.ConsentTypes.Explicit,
                     DisplayName = "POS System",
@@ -172,53 +201,19 @@ namespace IdP.Web.Infrastructure.Worker
                 }, cancellationToken);
             }
 
-            // 3. Postman Client (For Testing)
-            if (await manager.FindByClientIdAsync("postman", cancellationToken) is null)
-            {
-                await manager.CreateAsync(new OpenIddictApplicationDescriptor
-                {
-                    ClientId = "postman",
-                    ClientSecret = "postman-secret",
-                    DisplayName = "Postman",
-                    RedirectUris = { new Uri("https://oauth.pstmn.io/v1/callback") },
-                    Permissions =
-                    {
-                        OpenIddictConstants.Permissions.Endpoints.Authorization,
-                        OpenIddictConstants.Permissions.Endpoints.Token,
-
-                        OpenIddictConstants.Permissions.GrantTypes.AuthorizationCode,
-                        OpenIddictConstants.Permissions.GrantTypes.ClientCredentials,
-
-                        OpenIddictConstants.Permissions.ResponseTypes.Code,
-
-                        OpenIddictConstants.Permissions.Scopes.Email,
-                        OpenIddictConstants.Permissions.Scopes.Profile,
-                        OpenIddictConstants.Permissions.Scopes.Roles
-                    },
-                    // We allow PKCE but don't strictly require it for Postman flexibility
-                    Requirements =
-                    {
-                        OpenIddictConstants.Requirements.Features.ProofKeyForCodeExchange
-                    }
-                }, cancellationToken);
-            }
-
-            // 4. Seed Roles & Permissions
-            var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-            if(await roleManager.FindByNameAsync("Manager") is null)
+            // C. SEED ROLES & PERMISSIONS
+            if (await roleManager.FindByNameAsync("Manager") is null)
             {
                 var role = new IdentityRole("Manager");
                 await roleManager.CreateAsync(role);
 
-                // Assign Permissions (Claims) to this Role
-                // These strings (products:read) match what your IMS Backend will check for
+                // These permissions are prefixed with 'ims:' by convention
                 await roleManager.AddClaimAsync(role, new Claim("permission", "ims:products:read"));
                 await roleManager.AddClaimAsync(role, new Claim("permission", "ims:products:create"));
                 await roleManager.AddClaimAsync(role, new Claim("permission", "ims:products:edit"));
             }
 
-            // 5. Seed Test User & Assign Role
-            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            // D. SEED USER
             if (await userManager.FindByNameAsync("bob") is null)
             {
                 var user = new ApplicationUser
@@ -228,12 +223,7 @@ namespace IdP.Web.Infrastructure.Worker
                     EmailConfirmed = true
                 };
 
-                // Note: In real apps, password complexity rules apply. 
-                // We relaxed them in Program.cs for dev.
                 await userManager.CreateAsync(user, "Pass123$");
-
-                // Assign Bob to the Manager role
-                // This implicitly gives him the permissions defined above
                 await userManager.AddToRoleAsync(user, "Manager");
             }
         }
