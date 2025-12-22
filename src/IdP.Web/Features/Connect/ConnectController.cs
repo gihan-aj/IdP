@@ -17,6 +17,7 @@ namespace IdP.Web.Features.Connect
     {
         private readonly IOpenIddictApplicationManager _applicationManager;
         private readonly IOpenIddictAuthorizationManager _authorizationManager;
+        private readonly IOpenIddictScopeManager _scopeManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly RoleManager<IdentityRole> _roleManager;
@@ -26,13 +27,15 @@ namespace IdP.Web.Features.Connect
             IOpenIddictAuthorizationManager authorizationManager,
             SignInManager<ApplicationUser> signInManager,
             UserManager<ApplicationUser> userManager,
-            RoleManager<IdentityRole> roleManager)
+            RoleManager<IdentityRole> roleManager,
+            IOpenIddictScopeManager scopeManager)
         {
             _applicationManager = applicationManager;
             _authorizationManager = authorizationManager;
             _signInManager = signInManager;
             _userManager = userManager;
             _roleManager = roleManager;
+            _scopeManager = scopeManager;
         }
 
         // -------------------------------------------------------------------------
@@ -137,6 +140,7 @@ namespace IdP.Web.Features.Connect
                 {
                     ApplicationName = await _applicationManager.GetDisplayNameAsync(application) ?? "Unknown Application",
                     Scopes = request.GetScopes(),
+                    ScopeDescriptions = await GetScopeDescriptions(request.GetScopes()),
                     ReturnUrl = Request.PathBase + Request.Path + QueryString.Create(
                             Request.HasFormContentType ? Request.Form.ToList() : Request.Query.ToList())
                 });
@@ -403,6 +407,43 @@ namespace IdP.Web.Features.Connect
                 .GroupBy(c => c.Value)
                 .Select(g => g.First())
                 .ToList();
+        }
+
+        private async Task<IEnumerable<string>> GetScopeDescriptions(IEnumerable<string> scopes)
+        {
+            var descriptions = new List<string>();
+
+            foreach (var scope in scopes)
+            {
+                // 1. Try to find the scope in the Database via OpenIddictScopeManager
+                var scopeEntity = await _scopeManager.FindByNameAsync(scope);
+                if (scopeEntity != null)
+                {
+                    // Retrieve the description or display name from the DB
+                    var description = await _scopeManager.GetDescriptionAsync(scopeEntity);
+                    var displayName = await _scopeManager.GetDisplayNameAsync(scopeEntity);
+
+                    // Add the best available friendly string
+                    descriptions.Add(description ?? displayName ?? $"Access the '{scope}' scope");
+                    continue;
+                }
+
+                // 2. Fallback for Standard OIDC Scopes (if not seeded in DB)
+                // It is best practice to seed these too, but this switch ensures the UI is always friendly.
+                var standardDescription = scope switch
+                {
+                    OpenIddictConstants.Scopes.Email => "View your email address",
+                    OpenIddictConstants.Scopes.Profile => "View your basic profile details (name, username)",
+                    OpenIddictConstants.Scopes.Roles => "View your assigned roles",
+                    OpenIddictConstants.Scopes.OfflineAccess => "Access your data even when you are not logged in",
+                    OpenIddictConstants.Scopes.OpenId => "Sign you in using your identity",
+                    _ => $"Access the '{scope}' scope" // Final fallback
+                };
+
+                descriptions.Add(standardDescription);
+            }
+
+            return descriptions;
         }
 
         private IEnumerable<string> GetDestinations(Claim claim, ClaimsPrincipal principal)

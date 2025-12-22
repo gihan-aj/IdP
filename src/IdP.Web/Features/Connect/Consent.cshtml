@@ -30,12 +30,12 @@
                 <div class="flex">
                     <div class="ml-3">
                         <h3 class="text-sm font-medium text-yellow-800">
-                            Requested Permissions:
+                            The application wants to:
                         </h3>
                         <ul class="mt-2 list-disc list-inside text-sm text-yellow-700">
-                            @if (Model?.Scopes != null)
+                            @if (Model?.ScopeDescriptions != null)
                             {
-                                @foreach (var scope in Model.Scopes)
+                                @foreach (var scope in Model.ScopeDescriptions)
                                 {
                                     <li>@scope</li>
                                 }
@@ -54,9 +54,11 @@
 
                 @if (!string.IsNullOrEmpty(Model?.ReturnUrl))
                 {
-                    // Parse the query string from ReturnUrl and render as hidden inputs
-                    // This creates <input type="hidden" name="client_id" value="..." /> etc.
-                    foreach (var parameter in Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(new Uri("http://localhost" + Model.ReturnUrl).Query))
+                    // FIX: Use the current request context to build a valid absolute URI.
+                    var currentUrl = $"{Context.Request.Scheme}://{Context.Request.Host}{Model.ReturnUrl}";
+                    var queryParameters = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(new Uri(currentUrl).Query);
+
+                    foreach (var parameter in queryParameters)
                     {
                         <input type="hidden" name="@parameter.Key" value="@parameter.Value" />
                     }

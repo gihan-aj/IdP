@@ -7,8 +7,9 @@ namespace IdP.Web.Features.Connect
         [Display(Name = "Application")]
         public string ApplicationName { get; set; } = string.Empty;
 
-        [Display(Name = "Scope")]
         public IEnumerable<string> Scopes { get; set; } = new List<string>();
+
+        public IEnumerable<string> ScopeDescriptions { get; set; } = new List<string>();
 
         public string ReturnUrl { get; set; } = string.Empty;
     }
