@@ -96,6 +96,8 @@ namespace IdP.Web.Features.Connect
                 throw new InvalidOperationException("Details concerning the calling client application cannot be found.");
             var userIdString = await _userManager.GetUserIdAsync(user);
 
+            var scopes = request.GetScopes();
+
             // 5. Handle Consent Form Submission (POST)
             // If the user clicked "Allow" or "Deny" on the Consent View
             if (Request.HasFormContentType)
@@ -116,7 +118,7 @@ namespace IdP.Web.Features.Connect
                         subject: userIdString,
                         client: applicationId,
                         type: AuthorizationTypes.Permanent,
-                        scopes: request.GetScopes());
+                        scopes: scopes);
 
                     // Continue execution flow to issue the token...
                 }
@@ -128,7 +130,7 @@ namespace IdP.Web.Features.Connect
                 client: applicationId,
                 status: Statuses.Valid,
                 type: AuthorizationTypes.Permanent,
-                scopes: request.GetScopes()).ToListAsync();
+                scopes: scopes).ToListAsync();
 
             // 7. Determine Consent Requirements
             var consentType = await _applicationManager.GetConsentTypeAsync(application);
@@ -139,8 +141,8 @@ namespace IdP.Web.Features.Connect
                 return View("~/Features/Connect/Consent.cshtml", new ConsentViewModel
                 {
                     ApplicationName = await _applicationManager.GetDisplayNameAsync(application) ?? "Unknown Application",
-                    Scopes = request.GetScopes(),
-                    ScopeDescriptions = await GetScopeDescriptions(request.GetScopes()),
+                    Scopes = scopes,
+                    ScopeDescriptions = await GetScopeDescriptions(scopes),
                     ReturnUrl = Request.PathBase + Request.Path + QueryString.Create(
                             Request.HasFormContentType ? Request.Form.ToList() : Request.Query.ToList())
                 });
@@ -156,10 +158,13 @@ namespace IdP.Web.Features.Connect
             identity.AddClaim(Claims.Name, await _userManager.GetUserNameAsync(user) ?? user.UserName ?? "Unknown User");
             identity.AddClaim(Claims.Email, await _userManager.GetEmailAsync(user) ?? "");
 
-            identity.SetScopes(request.GetScopes());
+            identity.SetScopes(scopes);
+
+            var resources = await _scopeManager.ListResourcesAsync(scopes).ToListAsync();
+            identity.SetResources(resources);
 
             // 9. Inject Permissions (Dynamic based on scopes)
-            var permissions = await GetPermissionsForScopesAsync(user, request.GetScopes());
+            var permissions = await GetPermissionsForScopesAsync(user, scopes);
             foreach (var claim in permissions)
             {
                 identity.AddClaim(claim);
@@ -223,7 +228,8 @@ namespace IdP.Web.Features.Connect
                 }
 
                 // Copy existing claims from the ticket
-                var identity = new ClaimsIdentity(result.Principal.Claims,
+                var identity = new ClaimsIdentity(
+                    claims: result.Principal.Claims,
                     authenticationType: TokenValidationParameters.DefaultAuthenticationType,
                     nameType: Claims.Name,
                     roleType: Claims.Role);
@@ -231,6 +237,9 @@ namespace IdP.Web.Features.Connect
                 // Dynamic Permission Refresh
                 // If the scope indicates a resource server, we wipe and re-fetch permissions to ensure they are fresh.
                 var grantedScopes = result.Principal.GetScopes();
+
+                var resources = await _scopeManager.ListResourcesAsync(grantedScopes).ToListAsync();
+                identity.SetResources(resources);
 
                 if (grantedScopes.Any(s => s.EndsWith("_resource_server", StringComparison.OrdinalIgnoreCase)))
                 {
@@ -284,6 +293,9 @@ namespace IdP.Web.Features.Connect
                 identity.AddClaim(Claims.Name, displayName ?? clientId ?? "Unknown");
 
                 identity.SetScopes(request.GetScopes());
+
+                var resources = await _scopeManager.ListResourcesAsync(identity.GetScopes()).ToListAsync();
+                identity.SetResources(resources);
 
                 return SignIn(new ClaimsPrincipal(identity), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
             }

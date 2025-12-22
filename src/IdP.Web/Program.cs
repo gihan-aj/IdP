@@ -48,6 +48,18 @@ builder.Services.Configure<IdentityOptions>(options =>
     options.SignIn.RequireConfirmedAccount = false; // Set to true for email verification flows
 });
 
+builder.Services.ConfigureApplicationCookie(options =>
+{
+    // If 'Remember Me' is checked, the cookie lasts this long:
+    options.ExpireTimeSpan = TimeSpan.FromDays(30);
+
+    // If 'Remember Me' is NOT checked, the cookie expires when the browser closes
+    // (This is the default behavior, controlled by isPersistent in the login logic)
+
+    // SlidingExpiration means if they use the app, the timer resets.
+    options.SlidingExpiration = true;
+});
+
 // OPENIDDICT CONFIGURATION
 // =============================================================================
 builder.Services.AddOpenIddict()

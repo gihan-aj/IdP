@@ -30,6 +30,9 @@ namespace IdP.Web.Features.Account.Login
             [Required]
             [DataType(DataType.Password)]
             public string Password { get; set; } = string.Empty;
+
+            [Display(Name = "Remember me?")]
+            public bool RememberMe { get; set; }
         }
 
         public async Task OnGetAsync(string? returnUrl = null)
@@ -56,7 +59,7 @@ namespace IdP.Web.Features.Account.Login
             var result = await _signInManager.PasswordSignInAsync(
                 Input.Username,
                 Input.Password,
-                isPersistent: false, // "Remember Me" can be added here later
+                isPersistent: Input.RememberMe,
                 lockoutOnFailure: false);
 
             if (result.Succeeded)

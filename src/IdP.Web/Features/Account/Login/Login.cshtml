@@ -6,11 +6,6 @@
 	ViewData["Title"] = "Log in";
 }
 
-<!--
-    NOTE: This is a standalone Razor Page.
-    It does not depend on a shared _Layout.cshtml yet to keep the slice self-contained.
-    We are using Tailwind CSS via CDN for simplicity in this learning phase.
--->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -19,11 +14,12 @@
     <title>@ViewData["Title"] - Identity Provider</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-50">
+<body class="bg-gray-50 text-gray-900">
     <div class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-        <div class="max-w-md w-full space-y-8">
+        <!-- Card Container -->
+        <div class="max-w-md w-full space-y-8 bg-white p-8 rounded-lg shadow-md">
             <div>
-                <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
+                <h2 class="mt-2 text-center text-3xl font-extrabold text-gray-900">
                     Sign in to your account
                 </h2>
                 <p class="mt-2 text-center text-sm text-gray-600">
@@ -31,43 +27,33 @@
                 </p>
             </div>
 
-            <form class="mt-8 space-y-6" method="post">
-                <!--
-                     The ReturnUrl is CRITICAL.
-                     It holds the OpenIddict protocol request (client_id, scope, etc.).
-                     We must preserve it through the login process.
-                -->
-                <input type="hidden" name="returnUrl" value="@Model.ReturnUrl" />
-
-                @if (!ModelState.IsValid)
-                {
-                    <div class="rounded-md bg-red-50 p-4">
-                        <div class="flex">
-                            <div class="ml-3">
-                                <h3 class="text-sm font-medium text-red-800">
-                                    There were errors with your submission
-                                </h3>
-                                <div class="mt-2 text-sm text-red-700">
-                                    <ul role="list" class="list-disc pl-5 space-y-1">
-                                        @foreach (var error in ModelState.Values.SelectMany(v => v.Errors))
-                                        {
-                                            <li>@error.ErrorMessage</li>
-                                        }
-                                    </ul>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                }
+            <form class="mt-8 space-y-6" method="post" asp-route-returnUrl="@Model.ReturnUrl">
+                <div asp-validation-summary="All" class="text-red-600 text-sm"></div>
 
                 <div class="rounded-md shadow-sm -space-y-px">
                     <div>
-                        <label for="username" class="sr-only">Username</label>
-                        <input asp-for="Input.Username" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm" placeholder="Username (e.g. bob)" />
+                        <label asp-for="Input.Username" class="sr-only">Username</label>
+                        <input asp-for="Input.Username" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm" placeholder="Username" />
                     </div>
                     <div>
-                        <label for="password" class="sr-only">Password</label>
+                        <label asp-for="Input.Password" class="sr-only">Password</label>
                         <input asp-for="Input.Password" type="password" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm" placeholder="Password" />
+                    </div>
+                </div>
+
+                <!-- Remember Me Checkbox -->
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center">
+                        <input asp-for="Input.RememberMe" type="checkbox" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded" />
+                        <label asp-for="Input.RememberMe" class="ml-2 block text-sm text-gray-900">
+                            Remember me
+                        </label>
+                    </div>
+
+                    <div class="text-sm">
+                        <a href="#" class="font-medium text-indigo-600 hover:text-indigo-500">
+                            Forgot your password?
+                        </a>
                     </div>
                 </div>
 
