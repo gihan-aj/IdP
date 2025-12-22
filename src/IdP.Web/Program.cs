@@ -76,6 +76,7 @@ builder.Services.AddOpenIddict()
             OpenIddictConstants.Scopes.Email,
             OpenIddictConstants.Scopes.Profile,
             OpenIddictConstants.Scopes.Roles,
+            OpenIddictConstants.Scopes.OfflineAccess,
             "ims_resource_server");
 
         // 4. Security (Dev only: Ephemeral keys)

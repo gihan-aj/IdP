@@ -1,4 +1,5 @@
 ﻿
+using System.Security.Claims;
 using IdP.Web.Infrastructure.Data;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Data.SqlClient;
@@ -121,11 +122,48 @@ namespace IdP.Web.Infrastructure.Worker
 
                         OpenIddictConstants.Permissions.ResponseTypes.Code,
 
-                        // Allow accessing the IMS API and getting user profile info
-                        OpenIddictConstants.Permissions.Prefixes.Scope + "ims_resource_server",
                         OpenIddictConstants.Permissions.Scopes.Profile,
                         OpenIddictConstants.Permissions.Scopes.Email,
-                        OpenIddictConstants.Permissions.Scopes.Roles
+                        OpenIddictConstants.Permissions.Scopes.Roles,
+
+                        OpenIddictConstants.Permissions.Prefixes.Scope + OpenIddictConstants.Scopes.OfflineAccess,
+
+                        // Allow accessing the IMS API and getting user profile info
+                        OpenIddictConstants.Permissions.Prefixes.Scope + "ims_resource_server",
+                    },
+                    Requirements =
+                    {
+                        OpenIddictConstants.Requirements.Features.ProofKeyForCodeExchange
+                    }
+                }, cancellationToken);
+            }
+
+            if (await manager.FindByClientIdAsync("pos_client", cancellationToken) is null)
+            {
+                await manager.CreateAsync(new OpenIddictApplicationDescriptor
+                {
+                    ClientId = "pos_client",
+                    // No Secret for PKCE Public Clients
+                    ConsentType = OpenIddictConstants.ConsentTypes.Explicit,
+                    DisplayName = "POS System",
+                    RedirectUris = { new Uri("http://127.0.0.1:7890/callback") },
+                    PostLogoutRedirectUris = { new Uri("http://127.0.0.1:7890/") },
+                    Permissions =
+                    {
+                        OpenIddictConstants.Permissions.Endpoints.Authorization,
+                        OpenIddictConstants.Permissions.Endpoints.EndSession,
+                        OpenIddictConstants.Permissions.Endpoints.Token,
+
+                        OpenIddictConstants.Permissions.GrantTypes.AuthorizationCode,
+                        OpenIddictConstants.Permissions.GrantTypes.RefreshToken,
+
+                        OpenIddictConstants.Permissions.ResponseTypes.Code,
+
+                        OpenIddictConstants.Permissions.Scopes.Profile,
+                        OpenIddictConstants.Permissions.Scopes.Email,
+                        OpenIddictConstants.Permissions.Scopes.Roles,
+
+                        OpenIddictConstants.Permissions.Prefixes.Scope + OpenIddictConstants.Scopes.OfflineAccess,
                     },
                     Requirements =
                     {
@@ -165,7 +203,21 @@ namespace IdP.Web.Infrastructure.Worker
                 }, cancellationToken);
             }
 
-            // 4. Seed Test User
+            // 4. Seed Roles & Permissions
+            var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+            if(await roleManager.FindByNameAsync("Manager") is null)
+            {
+                var role = new IdentityRole("Manager");
+                await roleManager.CreateAsync(role);
+
+                // Assign Permissions (Claims) to this Role
+                // These strings (products:read) match what your IMS Backend will check for
+                await roleManager.AddClaimAsync(role, new Claim("permission", "ims:products:read"));
+                await roleManager.AddClaimAsync(role, new Claim("permission", "ims:products:create"));
+                await roleManager.AddClaimAsync(role, new Claim("permission", "ims:products:edit"));
+            }
+
+            // 5. Seed Test User & Assign Role
             var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
             if (await userManager.FindByNameAsync("bob") is null)
             {
@@ -179,6 +231,10 @@ namespace IdP.Web.Infrastructure.Worker
                 // Note: In real apps, password complexity rules apply. 
                 // We relaxed them in Program.cs for dev.
                 await userManager.CreateAsync(user, "Pass123$");
+
+                // Assign Bob to the Manager role
+                // This implicitly gives him the permissions defined above
+                await userManager.AddToRoleAsync(user, "Manager");
             }
         }
 

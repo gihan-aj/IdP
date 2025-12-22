@@ -1,4 +1,5 @@
-﻿using System.Security.Claims;
+﻿using System.Collections.Immutable;
+using System.Security.Claims;
 using IdP.Web.Infrastructure.Data;
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Authentication;
@@ -15,34 +16,41 @@ namespace IdP.Web.Features.Connect
     public class ConnectController : Controller
     {
         private readonly IOpenIddictApplicationManager _applicationManager;
+        private readonly IOpenIddictAuthorizationManager _authorizationManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly RoleManager<IdentityRole> _roleManager;
 
         public ConnectController(
             IOpenIddictApplicationManager applicationManager,
+            IOpenIddictAuthorizationManager authorizationManager,
             SignInManager<ApplicationUser> signInManager,
-            UserManager<ApplicationUser> userManager)
+            UserManager<ApplicationUser> userManager,
+            RoleManager<IdentityRole> roleManager)
         {
             _applicationManager = applicationManager;
+            _authorizationManager = authorizationManager;
             _signInManager = signInManager;
             _userManager = userManager;
+            _roleManager = roleManager;
         }
 
-        // 1. AUTHORIZE ENDPOINT
-        // The user hits this URL to log in. We check if they have a cookie.
-        // If yes, we issue an Auth Code. If no, we send them to /Account/Login
+        // -------------------------------------------------------------------------
+        // AUTHORIZE ENDPOINT
+        // -------------------------------------------------------------------------
         [HttpGet("~/connect/authorize")]
         [HttpPost("~/connect/authorize")]
         [IgnoreAntiforgeryToken]
         public async Task<IActionResult> Authorize()
         {
+            // 1. Validate the OIDC Request
             var request = HttpContext.GetOpenIddictServerRequest() ??
                 throw new InvalidOperationException("The OpenID Connect request cannot be retrieved.");
 
-            // Check if user is authenticated in the *Identity* cookie
+            // 2. Authenticate the User (Check Cookie)
             var result = await HttpContext.AuthenticateAsync(IdentityConstants.ApplicationScheme);
 
-            // IF NOT LOGGED IN: Challenge them (redirect to Login page)
+            // If not logged in, redirect to login page
             if (!result.Succeeded || result.Principal is not ClaimsPrincipal principal)
             {
                 return Challenge(
@@ -54,69 +62,129 @@ namespace IdP.Web.Features.Connect
                     });
             }
 
-            // IF LOGGED IN: Create the Principal (the ticket)
-            var user = await _userManager.GetUserAsync(result.Principal);
+            // 3. Retrieve the User Object
+            // We do this once and reuse 'user' throughout the method.
+            var user = await _userManager.GetUserAsync(principal);
             if (user == null)
             {
+                // Fallback: Try fetching by ID from claims if standard lookup fails
                 var userId = _userManager.GetUserId(principal)
-                             ?? principal.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                             ?? principal.FindFirst("sub")?.Value;
+                        ?? principal.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                        ?? principal.FindFirst("sub")?.Value;
 
-                if (userId != null)
-                {
-                    user = await _userManager.FindByIdAsync(userId);
-                }
+                if (userId != null) user = await _userManager.FindByIdAsync(userId);
             }
 
             if (user == null)
             {
+                // If we still can't find the user, their account might be deleted. Log them out.
                 await HttpContext.SignOutAsync(IdentityConstants.ApplicationScheme);
                 return Challenge(IdentityConstants.ApplicationScheme);
             }
 
+            // 4. Retrieve the Client Application
+            // We validate this EARLY so we can rely on 'application' being non-null later.
+            var clientId = request.ClientId ??
+                throw new InvalidOperationException("Client ID cannot be found.");
+            var application = await _applicationManager.FindByClientIdAsync(clientId) ??
+                throw new InvalidOperationException("Details concerning the calling client application cannot be found.");
+
+            var applicationId = await _applicationManager.GetIdAsync(application) ??
+                throw new InvalidOperationException("Details concerning the calling client application cannot be found.");
+            var userIdString = await _userManager.GetUserIdAsync(user);
+
+            // 5. Handle Consent Form Submission (POST)
+            // If the user clicked "Allow" or "Deny" on the Consent View
+            if (Request.HasFormContentType)
+            {
+                var consentAction = Request.Form["consent_action"].ToString();
+
+                if (consentAction == "deny")
+                {
+                    return Forbid(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+                }
+
+                if (consentAction == "accept")
+                {
+                    // Create the permanent authorization
+                    // We use the already-retrieved 'user' and 'application' variables here.
+                    await _authorizationManager.CreateAsync(
+                        principal: principal,
+                        subject: userIdString,
+                        client: applicationId,
+                        type: AuthorizationTypes.Permanent,
+                        scopes: request.GetScopes());
+
+                    // Continue execution flow to issue the token...
+                }
+            }
+
+            // 6. Check for Existing Authorizations
+            var authorizations = await _authorizationManager.FindAsync(
+                subject: userIdString,
+                client: applicationId,
+                status: Statuses.Valid,
+                type: AuthorizationTypes.Permanent,
+                scopes: request.GetScopes()).ToListAsync();
+
+            // 7. Determine Consent Requirements
+            var consentType = await _applicationManager.GetConsentTypeAsync(application);
+
+            // If explicit consent is required and no authorization exists, show the View.
+            if (consentType != ConsentTypes.Implicit && !authorizations.Any())
+            {
+                return View("~/Features/Connect/Consent.cshtml", new ConsentViewModel
+                {
+                    ApplicationName = await _applicationManager.GetDisplayNameAsync(application) ?? "Unknown Application",
+                    Scopes = request.GetScopes(),
+                    ReturnUrl = Request.PathBase + Request.Path + QueryString.Create(
+                            Request.HasFormContentType ? Request.Form.ToList() : Request.Query.ToList())
+                });
+            }
+
+            // 8. Construct the Identity Ticket
             var identity = new ClaimsIdentity(
                 authenticationType: TokenValidationParameters.DefaultAuthenticationType,
                 nameType: Claims.Name,
                 roleType: Claims.Role);
 
-            identity.AddClaim(Claims.Subject, await _userManager.GetUserIdAsync(user!));
-            identity.AddClaim(Claims.Name, await _userManager.GetUserNameAsync(user!) ?? "UnidentifiedUser");
-            identity.AddClaim(Claims.Email, await _userManager.GetEmailAsync(user!) ?? "");
+            identity.AddClaim(Claims.Subject, userIdString);
+            identity.AddClaim(Claims.Name, await _userManager.GetUserNameAsync(user) ?? user.UserName ?? "Unknown User");
+            identity.AddClaim(Claims.Email, await _userManager.GetEmailAsync(user) ?? "");
 
-            // ---------------------------------------------------------------------
-            // CUSTOM USER MANAGEMENT LOGIC (AUTHORIZE)
-            // ---------------------------------------------------------------------
-            // This is where you add permissions specific to the CLIENT being accessed.
-            // Example:
-            // var permissions = await _myPermissionService.GetPermissionsAsync(user.Id, request.ClientId);
-            // foreach (var perm in permissions) { identity.AddClaim("permission", perm); }
-
-            // Explicitly take the scopes from the request and stamp them on the identity.
-            // This tells OpenIddict: "Yes, include these scopes in the token."
             identity.SetScopes(request.GetScopes());
 
-            // Wrap the identity in a principal so we can check the scopes inside GetDestinations
+            // 9. Inject Permissions (Dynamic based on scopes)
+            var permissions = await GetPermissionsForScopesAsync(user, request.GetScopes());
+            foreach (var claim in permissions)
+            {
+                identity.AddClaim(claim);
+            }
+
             var newPrincipal = new ClaimsPrincipal(identity);
 
-            // Set Destinations (Important for OpenIddict)
+            // Attach the authorization ID so OpenIddict knows this token is backed by a DB entry
+            newPrincipal.SetAuthorizationId(await _authorizationManager.GetIdAsync(authorizations.LastOrDefault()!));
+
             foreach (var claim in identity.Claims)
             {
                 claim.SetDestinations(GetDestinations(claim, newPrincipal));
             }
 
-            // Return the SignIn result which OpenIddict intercepts to generate the Auth Code
             return SignIn(newPrincipal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         }
 
-        // 2. TOKEN ENDPOINT
-        // Clients hit this (machine-to-machine) to exchange Code for Token
+        // -------------------------------------------------------------------------
+        // TOKEN EXCHANGE ENDPOINT
+        // -------------------------------------------------------------------------
         [HttpPost("~/connect/token")]
         public async Task<IActionResult> Exchange()
         {
             var request = HttpContext.GetOpenIddictServerRequest() ??
                 throw new InvalidOperationException("The OpenID Connect request cannot be retrieved.");
 
-            if(request.IsAuthorizationCodeGrantType() || request.IsRefreshTokenGrantType())
+            // Case A: Authorization Code or Refresh Token
+            if (request.IsAuthorizationCodeGrantType() || request.IsRefreshTokenGrantType())
             {
                 var result = await HttpContext.AuthenticateAsync(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
                 if (!result.Succeeded || result.Principal is null)
@@ -142,31 +210,43 @@ namespace IdP.Web.Features.Connect
                 if (user == null || !await _signInManager.CanSignInAsync(user))
                 {
                     return Forbid(
-                        authenticationSchemes: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme,
-                        properties: new AuthenticationProperties(new Dictionary<string, string?>
-                        {
-                            [OpenIddictServerAspNetCoreConstants.Properties.Error] = Errors.InvalidGrant,
-                            [OpenIddictServerAspNetCoreConstants.Properties.ErrorDescription] = "The user is no longer allowed to sign in."
-                        }));
+                       authenticationSchemes: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme,
+                       properties: new AuthenticationProperties(new Dictionary<string, string?>
+                       {
+                           [OpenIddictServerAspNetCoreConstants.Properties.Error] = Errors.InvalidGrant,
+                           [OpenIddictServerAspNetCoreConstants.Properties.ErrorDescription] = "The user is no longer allowed to sign in."
+                       }));
                 }
 
-                var identity = new ClaimsIdentity(
+                // Copy existing claims from the ticket
+                var identity = new ClaimsIdentity(result.Principal.Claims,
                     authenticationType: TokenValidationParameters.DefaultAuthenticationType,
                     nameType: Claims.Name,
                     roleType: Claims.Role);
 
-                // -----------------------------------------------------------------
-                // CUSTOM USER MANAGEMENT LOGIC (REFRESH TOKEN)
-                // -----------------------------------------------------------------
-                // IMPORTANT: If user permissions changed since the last login, 
-                // you should re-fetch them here and update the claims in 'identity'.
-                // Otherwise, the refresh token will just copy the old permissions forever.
+                // Dynamic Permission Refresh
+                // If the scope indicates a resource server, we wipe and re-fetch permissions to ensure they are fresh.
+                var grantedScopes = result.Principal.GetScopes();
 
-                identity.AddClaim(Claims.Subject, await _userManager.GetUserIdAsync(user));
-                identity.AddClaim(Claims.Name, await _userManager.GetUserNameAsync(user) ?? "User");
-                identity.AddClaim(Claims.Email, await _userManager.GetEmailAsync(user) ?? "");
+                if (grantedScopes.Any(s => s.EndsWith("_resource_server", StringComparison.OrdinalIgnoreCase)))
+                {
+                    // Clear old permissions
+                    var existingPermissions = identity.Claims.Where(c => c.Type == "permission").ToList();
+                    foreach (var claim in existingPermissions) identity.RemoveClaim(claim);
 
-                // Set Destinations
+                    // Fetch new permissions
+                    var freshPermissions = await GetPermissionsForScopesAsync(user, grantedScopes);
+                    foreach (var claim in freshPermissions)
+                    {
+                        // Add only if not duplicate
+                        if (!identity.HasClaim(c => c.Type == claim.Type && c.Value == claim.Value))
+                        {
+                            identity.AddClaim(claim);
+                        }
+                    }
+                }
+
+                // Re-apply destinations (OpenIddict does not persist destinations in Auth Codes)
                 foreach (var claim in identity.Claims)
                 {
                     claim.SetDestinations(GetDestinations(claim, result.Principal));
@@ -174,20 +254,11 @@ namespace IdP.Web.Features.Connect
 
                 return SignIn(new ClaimsPrincipal(identity), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
             }
+
+            // Case B: Client Credentials (Machine-to-Machine)
             else if (request.IsClientCredentialsGrantType())
             {
-                if (string.IsNullOrEmpty(request.ClientId))
-                {
-                    return Forbid(
-                       authenticationSchemes: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme,
-                       properties: new AuthenticationProperties(new Dictionary<string, string?>
-                       {
-                           [OpenIddictServerAspNetCoreConstants.Properties.Error] = Errors.InvalidRequest,
-                           [OpenIddictServerAspNetCoreConstants.Properties.ErrorDescription] = "The client_id is missing."
-                       }));
-                }
-
-                var application = await _applicationManager.FindByClientIdAsync(request.ClientId);
+                var application = await _applicationManager.FindByClientIdAsync(request.ClientId ?? "");
                 if (application == null)
                 {
                     return Forbid(
@@ -201,8 +272,13 @@ namespace IdP.Web.Features.Connect
 
                 var identity = new ClaimsIdentity(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
 
-                identity.AddClaim(Claims.Subject, await _applicationManager.GetClientIdAsync(application!) ?? "");
-                identity.AddClaim(Claims.Name, await _applicationManager.GetDisplayNameAsync(application!) ?? "");
+                // Handle potentially null Client properties safely
+                var clientId = await _applicationManager.GetClientIdAsync(application);
+                var displayName = await _applicationManager.GetDisplayNameAsync(application);
+
+                identity.AddClaim(Claims.Subject, clientId ?? "Unknown");
+                identity.AddClaim(Claims.Name, displayName ?? clientId ?? "Unknown");
+
                 identity.SetScopes(request.GetScopes());
 
                 return SignIn(new ClaimsPrincipal(identity), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
@@ -211,6 +287,9 @@ namespace IdP.Web.Features.Connect
             throw new NotImplementedException("The specified grant type is not implemented.");
         }
 
+        // -------------------------------------------------------------------------
+        // USERINFO ENDPOINT
+        // -------------------------------------------------------------------------
         [Authorize(AuthenticationSchemes = OpenIddictServerAspNetCoreDefaults.AuthenticationScheme)]
         [HttpGet("~/connect/userinfo")]
         [HttpPost("~/connect/userinfo")]
@@ -222,28 +301,22 @@ namespace IdP.Web.Features.Connect
             if (user is null)
             {
                 var subject = User.FindFirst(Claims.Subject)?.Value;
-                if (!string.IsNullOrEmpty(subject))
-                {
-                    user = await _userManager.FindByIdAsync(subject);
-                }
+                if (!string.IsNullOrEmpty(subject)) user = await _userManager.FindByIdAsync(subject);
             }
 
             if (user is null)
             {
-                // Token is valid but the user it belongs to might have been deleted.
                 return Challenge(
-                    authenticationSchemes: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme,
-                    properties: new AuthenticationProperties(new Dictionary<string, string?>
-                    {
-                        [OpenIddictServerAspNetCoreConstants.Properties.Error] = Errors.InvalidToken,
-                        [OpenIddictServerAspNetCoreConstants.Properties.ErrorDescription] = "The specified access token is bound to an account that no longer exists."
-                    }));
+                   authenticationSchemes: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme,
+                   properties: new AuthenticationProperties(new Dictionary<string, string?>
+                   {
+                       [OpenIddictServerAspNetCoreConstants.Properties.Error] = Errors.InvalidToken,
+                       [OpenIddictServerAspNetCoreConstants.Properties.ErrorDescription] = "The specified access token is bound to an account that no longer exists."
+                   }));
             }
 
-            // Create the JSON response based on the scopes the token has
             var claims = new Dictionary<string, object>(StringComparer.Ordinal)
             {
-                // 'sub' is mandatory in UserInfo response
                 [Claims.Subject] = await _userManager.GetUserIdAsync(user)
             };
 
@@ -267,39 +340,94 @@ namespace IdP.Web.Features.Connect
             return Ok(claims);
         }
 
-        // HELPER: Determines where claims live
+        // -------------------------------------------------------------------------
+        // LOGOUT ENDPOINT
+        // -------------------------------------------------------------------------
+        [HttpGet("~/connect/logout")]
+        [HttpPost("~/connect/logout")]
+        [IgnoreAntiforgeryToken]
+        public async Task<IActionResult> Logout()
+        {
+            await _signInManager.SignOutAsync();
+            return SignOut(
+                authenticationSchemes: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme,
+                properties: new AuthenticationProperties { RedirectUri = "/" });
+        }
+
+        // -------------------------------------------------------------------------
+        // HELPER METHODS
+        // -------------------------------------------------------------------------
+
+        /// <summary>
+        /// Dynamically loads permissions based on the requested resource scopes.
+        /// E.g. "ims_resource_server" -> loads all claims starting with "ims:" from the user's roles.
+        /// </summary>
+        private async Task<List<Claim>> GetPermissionsForScopesAsync(ApplicationUser user, IEnumerable<string> scopes)
+        {
+            var claimsToAdd = new List<Claim>();
+
+            var requiredPrefixes = scopes
+                .Where(s => s.EndsWith("_resource_server", StringComparison.OrdinalIgnoreCase))
+                .Select(s => s.Substring(0, s.IndexOf("_resource_server", StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+
+            if (!requiredPrefixes.Any()) return claimsToAdd;
+
+            var userRoles = await _userManager.GetRolesAsync(user);
+            if (userRoles == null) return claimsToAdd;
+
+            foreach (var roleName in userRoles)
+            {
+                var role = await _roleManager.FindByNameAsync(roleName);
+                if (role != null)
+                {
+                    var roleClaims = await _roleManager.GetClaimsAsync(role);
+                    if (roleClaims == null) continue;
+
+                    // Filter claims: Must be type "permission" AND start with one of the prefixes
+                    foreach (var claim in roleClaims)
+                    {
+                        if (claim.Type == "permission")
+                        {
+                            if (requiredPrefixes.Any(prefix => claim.Value.StartsWith($"{prefix}:", StringComparison.OrdinalIgnoreCase)))
+                            {
+                                claimsToAdd.Add(claim);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Return distinct claims
+            return claimsToAdd
+                .GroupBy(c => c.Value)
+                .Select(g => g.First())
+                .ToList();
+        }
+
         private IEnumerable<string> GetDestinations(Claim claim, ClaimsPrincipal principal)
         {
-            // Note: Destinations decide WHERE the claim appears.
-            // AccessToken: Visible to the API.
-            // IdentityToken: Visible to the Client (Postman/React) immediately.
-
             switch (claim.Type)
             {
                 case Claims.Name:
                     yield return Destinations.AccessToken;
-                    if (principal.HasScope(Scopes.Profile))
-                        yield return Destinations.IdentityToken;
+                    if (principal.HasScope(Scopes.Profile)) yield return Destinations.IdentityToken;
                     yield break;
 
                 case Claims.Email:
                     yield return Destinations.AccessToken;
-                    if (principal.HasScope(Scopes.Email))
-                        yield return Destinations.IdentityToken;
+                    if (principal.HasScope(Scopes.Email)) yield return Destinations.IdentityToken;
                     yield break;
 
                 case Claims.Role:
                     yield return Destinations.AccessToken;
-                    if (principal.HasScope(Scopes.Roles))
-                        yield return Destinations.IdentityToken;
+                    if (principal.HasScope(Scopes.Roles)) yield return Destinations.IdentityToken;
                     yield break;
 
-                // Example: Custom permission destination
                 case "permission":
                     yield return Destinations.AccessToken;
                     yield break;
 
-                // Never include the security stamp in the tokens, it's a secret
                 case "AspNet.Identity.SecurityStamp": yield break;
 
                 default:
