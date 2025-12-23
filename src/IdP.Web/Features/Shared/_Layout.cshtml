@@ -10,22 +10,40 @@
 </head>
 <body class="bg-gray-100 font-sans leading-normal tracking-normal">
 
+    @{
+        // Helper logic to check active route
+        var currentPath = Context.Request.Path.Value?.ToLower() ?? "";
+
+        string GetLinkClass(string linkPath)
+        {
+            // If we are on /admin/users/edit, /admin/users should still be active
+            return currentPath.StartsWith(linkPath)
+            ? "text-white font-bold"             // Active Style
+            : "text-indigo-200 hover:text-white"; // Inactive Style
+        }
+    }
+
     <nav class="flex items-center justify-between flex-wrap bg-indigo-600 p-6 fixed w-full z-10 top-0">
         <div class="flex items-center flex-shrink-0 text-white mr-6">
             <span class="font-semibold text-xl tracking-tight">🛡️ Identity Provider</span>
         </div>
         <div class="w-full block flex-grow lg:flex lg:items-center lg:w-auto">
             <div class="text-sm lg:flex-grow">
-                <a href="/" class="block mt-4 lg:inline-block lg:mt-0 text-indigo-200 hover:text-white mr-4">
-                    Home
+                <!-- Link back to main Dashboard -->
+                <a href="/" class="block mt-4 lg:inline-block lg:mt-0 mr-4 text-indigo-200 hover:text-white">
+                    Dashboard
                 </a>
-                <a href="/admin/users" class="block mt-4 lg:inline-block lg:mt-0 text-indigo-200 hover:text-white mr-4">
+
+                <!-- Admin Navigation -->
+                <a href="/admin/users" class="block mt-4 lg:inline-block lg:mt-0 mr-4 @GetLinkClass("/admin/users")">
                     Users
                 </a>
-                <a href="#" class="block mt-4 lg:inline-block lg:mt-0 text-indigo-200 hover:text-white mr-4">
+
+                <!-- Placeholders for future modules -->
+                <a href="#" class="block mt-4 lg:inline-block lg:mt-0 mr-4 @GetLinkClass("/admin/roles")">
                     Roles
                 </a>
-                <a href="#" class="block mt-4 lg:inline-block lg:mt-0 text-indigo-200 hover:text-white">
+                <a href="#" class="block mt-4 lg:inline-block lg:mt-0 @GetLinkClass("/admin/clients")">
                     Clients
                 </a>
             </div>
