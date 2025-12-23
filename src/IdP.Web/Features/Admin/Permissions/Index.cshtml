@@ -1,0 +1,72 @@
+﻿@page "/admin/permissions"
+@model IdP.Web.Features.Admin.Permissions.IndexModel
+@{
+	ViewData["Title"] = "Permission Catalog";
+}
+
+<div class="bg-white shadow rounded-lg p-6">
+    <div class="flex justify-between items-center mb-4">
+        <div>
+            <h2 class="text-2xl font-bold text-gray-800">Permission Catalog</h2>
+            <p class="text-gray-600 text-sm">Define granular permissions (Claims) available for assignment to Roles.</p>
+        </div>
+        <a href="/admin/permissions/create" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 text-sm font-medium">
+            Add Permission
+        </a>
+    </div>
+
+    <div class="overflow-x-auto">
+        <table class="min-w-full leading-normal">
+            <thead>
+                <tr>
+                    <th class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        Service / Resource
+                    </th>
+                    <th class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        Permission Value (Claim)
+                    </th>
+                    <th class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        Friendly Name
+                    </th>
+                    <th class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        Actions
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var perm in Model.Permissions)
+                {
+                    <tr>
+                        <td class="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-indigo-100 text-indigo-800">
+                                @perm.ServiceId
+                            </span>
+                        </td>
+                        <td class="px-5 py-5 border-b border-gray-200 bg-white text-sm font-mono text-gray-700">
+                            @perm.Value
+                        </td>
+                        <td class="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+                            <div class="font-medium text-gray-900">@perm.Name</div>
+                            @if (!string.IsNullOrEmpty(perm.Description))
+                            {
+                                <div class="text-xs text-gray-500">@perm.Description</div>
+                            }
+                        </td>
+                        <td class="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+                            <a href="#" class="text-indigo-600 hover:text-indigo-900 mr-2">Edit</a>
+                        </td>
+                    </tr>
+                }
+
+                @if (!Model.Permissions.Any())
+                {
+                    <tr>
+                        <td colspan="4" class="px-5 py-5 border-b border-gray-200 bg-white text-sm text-center text-gray-500 italic">
+                            No permissions defined yet. Add one to get started.
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

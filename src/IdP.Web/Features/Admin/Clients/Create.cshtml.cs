@@ -79,40 +79,40 @@ namespace IdP.Web.Features.Admin.Clients
             // 2. PERMISSIONS - FLOWS
 
             // Base endpoints
-            descriptor.Permissions.Add(Permissions.Endpoints.Token);
+            descriptor.Permissions.Add(OpenIddictConstants.Permissions.Endpoints.Token);
 
             if (Input.FlowAuthCode)
             {
-                descriptor.Permissions.Add(Permissions.Endpoints.Authorization);
-                descriptor.Permissions.Add(Permissions.Endpoints.EndSession);
-                descriptor.Permissions.Add(Permissions.GrantTypes.AuthorizationCode);
-                descriptor.Permissions.Add(Permissions.ResponseTypes.Code);
+                descriptor.Permissions.Add(OpenIddictConstants.Permissions.Endpoints.Authorization);
+                descriptor.Permissions.Add(OpenIddictConstants.Permissions.Endpoints.EndSession);
+                descriptor.Permissions.Add(OpenIddictConstants.Permissions.GrantTypes.AuthorizationCode);
+                descriptor.Permissions.Add(OpenIddictConstants.Permissions.ResponseTypes.Code);
 
                 // PKCE is standard for auth code
-                descriptor.Requirements.Add(Requirements.Features.ProofKeyForCodeExchange);
+                descriptor.Requirements.Add(OpenIddictConstants.Requirements.Features.ProofKeyForCodeExchange);
             }
 
             if (Input.FlowClientCredentials)
             {
-                descriptor.Permissions.Add(Permissions.GrantTypes.ClientCredentials);
+                descriptor.Permissions.Add(OpenIddictConstants.Permissions.GrantTypes.ClientCredentials);
             }
 
             if (Input.FlowRefreshToken)
             {
-                descriptor.Permissions.Add(Permissions.GrantTypes.RefreshToken);
-                descriptor.Permissions.Add(Permissions.Prefixes.Scope + OpenIddictConstants.Scopes.OfflineAccess);
+                descriptor.Permissions.Add(OpenIddictConstants.Permissions.GrantTypes.RefreshToken);
+                descriptor.Permissions.Add(OpenIddictConstants.Permissions.Prefixes.Scope + OpenIddictConstants.Scopes.OfflineAccess);
             }
 
             // 3. PERMISSIONS - STANDARD SCOPES
-            descriptor.Permissions.Add(Permissions.Scopes.Email);
-            descriptor.Permissions.Add(Permissions.Scopes.Profile);
-            descriptor.Permissions.Add(Permissions.Scopes.Roles);
+            descriptor.Permissions.Add(OpenIddictConstants.Permissions.Scopes.Email);
+            descriptor.Permissions.Add(OpenIddictConstants.Permissions.Scopes.Profile);
+            descriptor.Permissions.Add(OpenIddictConstants.Permissions.Scopes.Roles);
 
             // 4. PERMISSIONS - CUSTOM RESOURCE SCOPES (From Checkboxes)
             foreach (var scope in Input.SelectedScopes)
             {
                 // We use the Prefix constant to ensure correct format: "scp:scope_name"
-                descriptor.Permissions.Add(Permissions.Prefixes.Scope + scope);
+                descriptor.Permissions.Add(OpenIddictConstants.Permissions.Prefixes.Scope + scope);
             }
 
             await _applicationManager.CreateAsync(descriptor);
