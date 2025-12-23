@@ -29,7 +29,7 @@ namespace IdP.Web.Features.Admin.Users
                     Id = user.Id,
                     Username = user.UserName ?? "Unknown",
                     Email = user.Email ?? "Unknown",
-                    Roles = string.Join(",", roles)
+                    Roles = string.Join(", ", roles)
                 });
             }
         }
