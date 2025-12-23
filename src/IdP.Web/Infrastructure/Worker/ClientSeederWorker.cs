@@ -202,6 +202,12 @@ namespace IdP.Web.Infrastructure.Worker
             }
 
             // C. SEED ROLES & PERMISSIONS
+            if (await roleManager.FindByNameAsync("User") is null)
+            {
+                var role = new IdentityRole("User");
+                await roleManager.CreateAsync(role);
+            }
+
             if (await roleManager.FindByNameAsync("Manager") is null)
             {
                 var role = new IdentityRole("Manager");

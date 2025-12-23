@@ -12,6 +12,13 @@ builder.Services.AddControllersWithViews();
 builder.Services.AddRazorPages(options =>
 {
     options.RootDirectory = "/Features";
+    // Secure the admin folder
+    options.Conventions.AuthorizeFolder("/Admin", "RequireAdminRole");
+});
+
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("RequireAdminRole", policy => policy.RequireRole("Admin"));
 });
 
 // Database
