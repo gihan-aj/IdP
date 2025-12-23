@@ -11,6 +11,8 @@ namespace IdP.Web.Infrastructure.Data
             
         }
 
+        public DbSet<ServicePermission> ServicePermissions { get; set; }
+
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);
