@@ -1,0 +1,88 @@
+﻿@page "/admin/roles/create"
+@model IdP.Web.Features.Admin.Roles.CreateModel
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+
+@{
+    ViewData["Title"] = "Create Role";
+}
+
+<div class="max-w-4xl mx-auto bg-white shadow rounded-lg p-6">
+    <div class="flex justify-between items-start border-b border-gray-200 pb-4 mb-4">
+        <div>
+            <h2 class="text-2xl font-bold text-gray-800">Create New Role</h2>
+            <p class="text-gray-600 text-sm">Define a new role and assign its capabilities.</p>
+        </div>
+        <a href="/admin/roles" class="text-indigo-600 hover:text-indigo-900 text-sm font-medium flex items-center">
+            &larr; Back to List
+        </a>
+    </div>
+
+    <form method="post" class="space-y-6">
+        <div asp-validation-summary="All" class="text-red-600 text-sm"></div>
+
+        <!-- Role Identity -->
+        <div>
+            <label asp-for="Input.RoleName" class="block text-sm font-medium text-gray-700">Role Name</label>
+            <input asp-for="Input.RoleName" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm px-3 py-2 border" placeholder="e.g. FinanceManager" />
+        </div>
+
+        <!-- Permissions Matrix -->
+        <div>
+            <h3 class="text-lg font-medium text-gray-900 mb-4">Assign Permissions</h3>
+
+            @if (Model.GroupedPermissions.Any())
+            {
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    @foreach (var group in Model.GroupedPermissions)
+                    {
+                        <div class="border border-gray-200 rounded-md overflow-hidden">
+                            <div class="bg-gray-50 px-4 py-2 border-b border-gray-200">
+                                <h4 class="text-sm font-bold text-gray-700 uppercase tracking-wide">
+                                    @group.Key
+                                </h4>
+                            </div>
+                            <div class="p-4 space-y-3 bg-white">
+                                @foreach (var perm in group.Value)
+                                {
+                                    <div class="relative flex items-start">
+                                        <div class="flex items-center h-5">
+                                            <input id="perm_@perm.Id" name="Input.SelectedPermissions" value="@perm.Value" type="checkbox" class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300 rounded">
+                                        </div>
+                                        <div class="ml-3 text-sm">
+                                            <label for="perm_@perm.Id" class="font-medium text-gray-700 select-none">
+                                                @perm.Name
+                                            </label>
+                                            @if (!string.IsNullOrEmpty(perm.Description))
+                                            {
+                                                <p class="text-gray-500 text-xs">@perm.Description</p>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4">
+                    <div class="flex">
+                        <div class="ml-3">
+                            <p class="text-sm text-yellow-700">
+                                No permissions defined yet. Go to <a href="/admin/permissions" class="font-medium underline hover:text-yellow-600">Permissions</a> to add some first.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="flex justify-end pt-4 border-t border-gray-200 mt-6">
+            <a href="/admin/roles" class="bg-white text-gray-700 px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium hover:bg-gray-50 mr-3">Cancel</a>
+            <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-md shadow-sm text-sm font-medium hover:bg-indigo-700">
+                Create Role
+            </button>
+        </div>
+    </form>
+</div>
