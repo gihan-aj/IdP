@@ -207,6 +207,12 @@ namespace IdP.Web.Infrastructure.Worker
                 var role = new IdentityRole("User");
                 await roleManager.CreateAsync(role);
             }
+            
+            if (await roleManager.FindByNameAsync("Admin") is null)
+            {
+                var role = new IdentityRole("Admin");
+                await roleManager.CreateAsync(role);
+            }
 
             if (await roleManager.FindByNameAsync("Manager") is null)
             {
@@ -231,6 +237,19 @@ namespace IdP.Web.Infrastructure.Worker
 
                 await userManager.CreateAsync(user, "Pass123$");
                 await userManager.AddToRoleAsync(user, "Manager");
+            }
+            
+            if (await userManager.FindByNameAsync("admin") is null)
+            {
+                var user = new ApplicationUser
+                {
+                    UserName = "admin",
+                    Email = "admin@test.com",
+                    EmailConfirmed = true
+                };
+
+                await userManager.CreateAsync(user, "Pass123$");
+                await userManager.AddToRoleAsync(user, "Admin");
             }
         }
 

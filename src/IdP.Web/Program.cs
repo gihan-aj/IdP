@@ -57,6 +57,8 @@ builder.Services.Configure<IdentityOptions>(options =>
 
 builder.Services.ConfigureApplicationCookie(options =>
 {
+    options.LoginPath = "/account/login";
+    options.AccessDeniedPath = "/account/accessdenied";
     // If 'Remember Me' is checked, the cookie lasts this long:
     options.ExpireTimeSpan = TimeSpan.FromDays(30);
 

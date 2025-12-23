@@ -1,0 +1,85 @@
+﻿@page "/"
+@model IdP.Web.Features.Home.IndexModel
+@{
+	Layout = null;
+	ViewData["Title"] = "Dashboard";
+}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Identity Provider</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛡️</text></svg>">
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 font-sans leading-normal tracking-normal">
+
+    <!-- Navigation -->
+    <nav class="flex items-center justify-between flex-wrap bg-white shadow p-6 fixed w-full z-10 top-0">
+        <div class="flex items-center flex-shrink-0 text-indigo-600 mr-6">
+            <span class="font-bold text-xl tracking-tight">🛡️ Identity Dashboard</span>
+        </div>
+        <div class="w-full block flex-grow lg:flex lg:items-center lg:w-auto">
+            <div class="text-sm lg:flex-grow">
+                <!-- Navigation Links -->
+                @if (User.IsInRole("Manager") || User.IsInRole("Admin"))
+                {
+                    <a href="/admin/users" class="block mt-4 lg:inline-block lg:mt-0 text-gray-600 hover:text-indigo-600 mr-4 font-medium">
+                        Admin Panel
+                    </a>
+                }
+            </div>
+            <div>
+                <!-- Logout Button -->
+                <a href="/connect/logout" class="inline-block text-sm px-4 py-2 leading-none border rounded text-indigo-600 border-indigo-600 hover:border-transparent hover:text-white hover:bg-indigo-600 mt-4 lg:mt-0 transition">
+                    Logout
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container mx-auto mt-24 px-4">
+
+        <div class="bg-white shadow rounded-lg p-6 mb-6">
+            <h1 class="text-3xl font-bold text-gray-800">Welcome back, @Model.Username!</h1>
+            <p class="text-gray-600 mt-2">You are successfully logged into the Identity Provider.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- User Info Card -->
+            <div class="bg-white shadow rounded-lg p-6">
+                <h3 class="text-xl font-bold text-gray-800 mb-4">Your Identity</h3>
+                <div class="bg-gray-50 rounded p-4 text-sm font-mono text-gray-700 h-64 overflow-y-auto">
+                    <ul class="space-y-1">
+                        @foreach (var claim in Model.Claims)
+                        {
+                            <li class="break-all border-b border-gray-200 pb-1 last:border-0">@claim</li>
+                        }
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="bg-white shadow rounded-lg p-6">
+                <h3 class="text-xl font-bold text-gray-800 mb-4">Quick Actions</h3>
+                <div class="flex flex-col space-y-3">
+                    <a href="/account/manage" class="text-center bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded border border-gray-300">
+                        Manage Profile (Not Implemented)
+                    </a>
+
+                    @if (User.IsInRole("Manager") || User.IsInRole("Admin"))
+                    {
+                        <a href="/admin/users" class="text-center bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded">
+                            Manage Users
+                        </a>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>
