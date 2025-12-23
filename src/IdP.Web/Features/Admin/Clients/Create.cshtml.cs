@@ -100,7 +100,7 @@ namespace IdP.Web.Features.Admin.Clients
             if (Input.FlowRefreshToken)
             {
                 descriptor.Permissions.Add(Permissions.GrantTypes.RefreshToken);
-                descriptor.Permissions.Add(Permissions.Prefixes.Scope + Scopes.OfflineAccess);
+                descriptor.Permissions.Add(Permissions.Prefixes.Scope + OpenIddictConstants.Scopes.OfflineAccess);
             }
 
             // 3. PERMISSIONS - STANDARD SCOPES
@@ -156,13 +156,13 @@ namespace IdP.Web.Features.Admin.Clients
 
         private bool IsStandardScope(string scope)
         {
-            return scope == Scopes.OpenId ||
-                   scope == Scopes.Email ||
-                   scope == Scopes.Profile ||
-                   scope == Scopes.Roles ||
-                   scope == Scopes.OfflineAccess ||
-                   scope == Scopes.Phone ||
-                   scope == Scopes.Address;
+            return scope == OpenIddictConstants.Scopes.OpenId ||
+                   scope == OpenIddictConstants.Scopes.Email ||
+                   scope == OpenIddictConstants.Scopes.Profile ||
+                   scope == OpenIddictConstants.Scopes.Roles ||
+                   scope == OpenIddictConstants.Scopes.OfflineAccess ||
+                   scope == OpenIddictConstants.Scopes.Phone ||
+                   scope == OpenIddictConstants.Scopes.Address;
         }
     }
 }
