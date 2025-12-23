@@ -1,0 +1,125 @@
+﻿@page "/admin/clients/create"
+@model IdP.Web.Features.Admin.Clients.CreateModel
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@{
+	ViewData["Title"] = "Register Client";
+}
+
+<div class="max-w-3xl mx-auto bg-white shadow rounded-lg p-6">
+
+    <div class="flex justify-between items-start border-b border-gray-200 pb-4 mb-4">
+        <div>
+            <h2 class="text-2xl font-bold text-gray-800">Register New Client</h2>
+            <p class="text-gray-600 text-sm">Configure a new application that can request tokens.</p>
+        </div>
+        <a href="/admin/clients" class="text-indigo-600 hover:text-indigo-900 text-sm font-medium flex items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Back to List
+        </a>
+    </div>
+
+    <form method="post" class="space-y-6">
+        <div asp-validation-summary="All" class="text-red-600 text-sm"></div>
+
+        <!-- Identity -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <label asp-for="Input.ClientId" class="block text-sm font-medium text-gray-700">Client ID</label>
+                <input asp-for="Input.ClientId" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm px-3 py-2 border" placeholder="e.g. ims-web-app" />
+            </div>
+            <div>
+                <label asp-for="Input.DisplayName" class="block text-sm font-medium text-gray-700">Display Name</label>
+                <input asp-for="Input.DisplayName" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm px-3 py-2 border" placeholder="e.g. IMS Dashboard" />
+            </div>
+        </div>
+
+        <div>
+            <label asp-for="Input.ClientSecret" class="block text-sm font-medium text-gray-700">Client Secret (Optional)</label>
+            <input asp-for="Input.ClientSecret" type="password" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm px-3 py-2 border" placeholder="Leave empty for Public Clients (SPA/Mobile)" />
+            <p class="text-xs text-gray-500 mt-1">Only required for Machine-to-Machine or Server-side apps.</p>
+        </div>
+
+        <!-- Flows -->
+        <div class="bg-gray-50 p-4 rounded-md border border-gray-200">
+            <h3 class="text-sm font-medium text-gray-900 mb-3">Allowed Flows</h3>
+            <div class="space-y-2">
+                <div class="flex items-start">
+                    <div class="flex items-center h-5">
+                        <input asp-for="Input.FlowAuthCode" class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300 rounded" />
+                    </div>
+                    <div class="ml-3 text-sm">
+                        <label asp-for="Input.FlowAuthCode" class="font-medium text-gray-700">Interactive Login (Authorization Code)</label>
+                        <p class="text-gray-500">Best for SPAs, Mobile Apps, and Websites with users.</p>
+                    </div>
+                </div>
+                <div class="flex items-start">
+                    <div class="flex items-center h-5">
+                        <input asp-for="Input.FlowClientCredentials" class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300 rounded" />
+                    </div>
+                    <div class="ml-3 text-sm">
+                        <label asp-for="Input.FlowClientCredentials" class="font-medium text-gray-700">Machine-to-Machine (Client Credentials)</label>
+                        <p class="text-gray-500">For backend services or daemons without users.</p>
+                    </div>
+                </div>
+                <div class="flex items-start">
+                    <div class="flex items-center h-5">
+                        <input asp-for="Input.FlowRefreshToken" class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300 rounded" />
+                    </div>
+                    <div class="ml-3 text-sm">
+                        <label asp-for="Input.FlowRefreshToken" class="font-medium text-gray-700">Allow Offline Access (Refresh Tokens)</label>
+                        <p class="text-gray-500">Allows staying logged in without re-entering passwords.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- API Access / Scopes -->
+        <div class="bg-gray-50 p-4 rounded-md border border-gray-200">
+            <h3 class="text-sm font-medium text-gray-900 mb-3">API Access (Resources)</h3>
+
+            @if (Model.AvailableResourceScopes.Any())
+            {
+                <div class="grid grid-cols-2 gap-4">
+                    @foreach (var scope in Model.AvailableResourceScopes)
+                    {
+                        <div class="flex items-center">
+                            <input type="checkbox" name="Input.SelectedScopes" value="@scope"
+                                   id="scope_@scope"
+                                   class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded" />
+                            <label for="scope_@scope" class="ml-2 block text-sm text-gray-900 select-none">
+                                @scope
+                            </label>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <p class="text-sm text-gray-500 italic">No custom resource scopes found in the database.</p>
+            }
+            <p class="text-xs text-gray-500 mt-2">
+                Select which APIs this client is allowed to request access to. Standard scopes (Email, Profile, Roles) are included automatically.
+            </p>
+        </div>
+
+        <!-- URLs -->
+        <div>
+            <label asp-for="Input.RedirectUris" class="block text-sm font-medium text-gray-700">Redirect URIs</label>
+            <textarea asp-for="Input.RedirectUris" rows="2" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm px-3 py-2 border" placeholder="https://myapp.com/callback, http://localhost:4200/callback"></textarea>
+            <p class="text-xs text-gray-500 mt-1">Comma separated. Where to send the user after login.</p>
+        </div>
+        <div>
+            <label asp-for="Input.PostLogoutUris" class="block text-sm font-medium text-gray-700">Post-Logout URIs</label>
+            <textarea asp-for="Input.PostLogoutUris" rows="2" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm px-3 py-2 border" placeholder="https://myapp.com/, http://localhost:4200/"></textarea>
+        </div>
+
+        <div class="flex justify-end pt-4">
+            <a href="/admin/clients" class="bg-white text-gray-700 px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium hover:bg-gray-50 mr-3">Cancel</a>
+            <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-md shadow-sm text-sm font-medium hover:bg-indigo-700">
+                Register Client
+            </button>
+        </div>
+    </form>
+</div>
