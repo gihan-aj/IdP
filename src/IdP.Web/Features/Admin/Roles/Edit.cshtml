@@ -1,0 +1,83 @@
+﻿@page "/admin/roles/edit/{id}"
+@model IdP.Web.Features.Admin.Roles.EditModel
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+
+@{
+    ViewData["Title"] = "Edit Role";
+}
+
+<div class="max-w-4xl mx-auto bg-white shadow rounded-lg p-6">
+    <div class="flex justify-between items-center border-b border-gray-200 pb-4 mb-4">
+        <h2 class="text-2xl font-bold text-gray-800">Edit Role</h2>
+        <a href="/admin/roles" class="text-indigo-600 hover:text-indigo-900 text-sm font-medium">
+            &larr; Back to List
+        </a>
+    </div>
+
+    <form method="post" class="space-y-6">
+        <div asp-validation-summary="All" class="text-red-600 text-sm"></div>
+        <input type="hidden" asp-for="Input.RoleId" />
+
+        <!-- Role Identity -->
+        <div>
+            <label asp-for="Input.RoleName" class="block text-sm font-medium text-gray-700">Role Name</label>
+            <input asp-for="Input.RoleName" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm px-3 py-2 border" />
+        </div>
+
+        <!-- Permissions Matrix -->
+        <div>
+            <h3 class="text-lg font-medium text-gray-900 mb-4">Assign Permissions</h3>
+
+            @if (Model.GroupedPermissions.Any())
+            {
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    @foreach (var group in Model.GroupedPermissions)
+                    {
+                        <div class="border border-gray-200 rounded-md overflow-hidden">
+                            <div class="bg-gray-50 px-4 py-2 border-b border-gray-200">
+                                <h4 class="text-sm font-bold text-gray-700 uppercase tracking-wide">
+                                    @group.Key
+                                </h4>
+                            </div>
+                            <div class="p-4 space-y-3 bg-white">
+                                @foreach (var item in group.Value)
+                                {
+                                    <div class="relative flex items-start">
+                                        <div class="flex items-center h-5">
+                                            <!-- Checkbox: Bind to Input.SelectedPermissions. Value is the claim string. -->
+                                            <input id="perm_@item.Permission.Id"
+                                                   name="Input.SelectedPermissions"
+                                                   value="@item.Permission.Value"
+                                                   type="checkbox"
+                                                   class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300 rounded"
+                                                   @(item.IsSelected ? "checked" : "")>
+                                        </div>
+                                        <div class="ml-3 text-sm">
+                                            <label for="perm_@item.Permission.Id" class="font-medium text-gray-700 select-none">
+                                                @item.Permission.Name
+                                            </label>
+                                            @if (!string.IsNullOrEmpty(item.Permission.Description))
+                                            {
+                                                <p class="text-gray-500 text-xs">@item.Permission.Description</p>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <p class="text-sm text-gray-500 italic">No permissions defined.</p>
+            }
+        </div>
+
+        <div class="flex justify-end pt-4 border-t border-gray-200 mt-6">
+            <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-md shadow-sm text-sm font-medium hover:bg-indigo-700">
+                Save Changes
+            </button>
+        </div>
+    </form>
+</div>
