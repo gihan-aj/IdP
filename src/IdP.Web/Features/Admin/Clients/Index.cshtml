@@ -50,6 +50,14 @@
                         </td>
                     </tr>
                 }
+                @if (!Model.Clients.Any())
+                {
+                    <tr>
+                        <td colspan="4" class="px-5 py-5 border-b border-gray-200 bg-white text-sm text-center text-gray-500 italic">
+                            No clients defined yet. Add one to get started.
+                        </td>
+                    </tr>
+                }
             </tbody>
         </table>
     </div>

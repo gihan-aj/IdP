@@ -1,0 +1,96 @@
+﻿@page "/admin/permissions/import"
+@model IdP.Web.Features.Admin.Permissions.ImportModel
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+
+@{
+    ViewData["Title"] = "Import Permissions";
+}
+
+<div class="max-w-xl mx-auto bg-white shadow rounded-lg p-6">
+    <div class="flex justify-between items-start border-b border-gray-200 pb-4 mb-4">
+        <div>
+            <h2 class="text-2xl font-bold text-gray-800">Import Permissions</h2>
+            <p class="text-gray-600 text-sm">Bulk upload permissions using a JSON file.</p>
+        </div>
+        <a href="/admin/permissions" class="text-indigo-600 hover:text-indigo-900 text-sm font-medium flex items-center">
+            &larr; Back
+        </a>
+    </div>
+
+    @if (!string.IsNullOrEmpty(Model.Message))
+    {
+        <div class="bg-green-50 border-l-4 border-green-400 p-4 mb-4">
+            <div class="flex">
+                <div class="ml-3">
+                    <p class="text-sm text-green-700">@Model.Message</p>
+                </div>
+            </div>
+        </div>
+    }
+
+    <form method="post" enctype="multipart/form-data" class="space-y-6">
+        <div asp-validation-summary="All" class="text-red-600 text-sm"></div>
+
+        <div>
+            <label class="block text-sm font-medium text-gray-700">JSON File</label>
+            <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+                <div class="space-y-1 text-center">
+                    <svg id="upload-icon" class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+                        <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                    <div class="flex text-sm text-gray-600 justify-center">
+                        <label asp-for="UploadFile" class="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500">
+                            <span id="upload-text">Upload a file</span>
+                            <input asp-for="UploadFile" type="file" accept=".json" class="sr-only"/>
+                        </label>
+                        <p class="pl-1" id="upload-hint">or drag and drop</p>
+                    </div>
+                    <p class="text-xs text-gray-500">
+                        JSON files only
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-gray-50 p-3 rounded text-xs text-gray-600 font-mono border border-gray-200">
+            <p class="font-bold mb-1">Expected Format:</p>
+            <pre>{
+  "ims_resource_server": [
+    { "name": "Read", "value": "ims:read" },
+    { "name": "Write", "value": "ims:write" }
+  ]
+}</pre>
+        </div>
+
+        <div class="flex justify-end">
+            <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-md shadow-sm text-sm font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                Import Data
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Script to provide visual feedback on file selection -->
+<script>
+    const fileInput = document.getElementById('UploadFile');
+    const uploadText = document.getElementById('upload-text');
+    const uploadHint = document.getElementById('upload-hint');
+    const uploadIcon = document.getElementById('upload-icon');
+    const dropZone = document.getElementById('drop-zone');
+
+    fileInput.addEventListener('change', function(e) {
+        if (this.files && this.files.length > 0) {
+            const fileName = this.files[0].name;
+
+            // Update text to show filename
+            uploadText.textContent = fileName;
+            uploadHint.textContent = "selected";
+
+            // Change styles to indicate success
+            uploadIcon.classList.remove('text-gray-400');
+            uploadIcon.classList.add('text-indigo-600');
+            dropZone.classList.add('border-indigo-500', 'bg-indigo-50');
+            dropZone.classList.remove('border-gray-300');
+        }
+    });
+</script>
