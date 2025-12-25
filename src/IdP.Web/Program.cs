@@ -1,3 +1,4 @@
+using IdP.Web.Features.Connect.Services;
 using IdP.Web.Infrastructure;
 using IdP.Web.Infrastructure.Data;
 using IdP.Web.Infrastructure.Worker;
@@ -20,6 +21,10 @@ builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("RequireAdminRole", policy => policy.RequireRole("Admin"));
 });
+
+// Cache
+builder.Services.AddDistributedMemoryCache();
+builder.Services.AddScoped<IPermissionService, PermissionService>();
 
 // Database
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
@@ -81,6 +86,9 @@ builder.Services.AddOpenIddict()
     // B. Server: Handle the OIDC Protocol
     .AddServer(options =>
     {
+        options.SetAccessTokenLifetime(TimeSpan.FromMinutes(5));
+        options.SetRefreshTokenLifetime(TimeSpan.FromDays(14));
+
         // 1. Define the endpoints (matches ConnectController routes)
         options.SetAuthorizationEndpointUris("/connect/authorize")
                .SetTokenEndpointUris("/connect/token")

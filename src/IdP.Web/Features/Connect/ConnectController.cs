@@ -1,5 +1,6 @@
 ﻿using System.Collections.Immutable;
 using System.Security.Claims;
+using IdP.Web.Features.Connect.Services;
 using IdP.Web.Infrastructure.Data;
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Authentication;
@@ -21,6 +22,7 @@ namespace IdP.Web.Features.Connect
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly RoleManager<IdentityRole> _roleManager;
+        private readonly IPermissionService _permissionService;
 
         public ConnectController(
             IOpenIddictApplicationManager applicationManager,
@@ -28,7 +30,8 @@ namespace IdP.Web.Features.Connect
             SignInManager<ApplicationUser> signInManager,
             UserManager<ApplicationUser> userManager,
             RoleManager<IdentityRole> roleManager,
-            IOpenIddictScopeManager scopeManager)
+            IOpenIddictScopeManager scopeManager,
+            IPermissionService permissionService)
         {
             _applicationManager = applicationManager;
             _authorizationManager = authorizationManager;
@@ -36,6 +39,7 @@ namespace IdP.Web.Features.Connect
             _userManager = userManager;
             _roleManager = roleManager;
             _scopeManager = scopeManager;
+            _permissionService = permissionService;
         }
 
         // -------------------------------------------------------------------------
@@ -96,7 +100,7 @@ namespace IdP.Web.Features.Connect
                 throw new InvalidOperationException("Details concerning the calling client application cannot be found.");
             var userIdString = await _userManager.GetUserIdAsync(user);
 
-            var scopes = request.GetScopes();
+            var grantedScopes = request.GetScopes();
 
             // 5. Handle Consent Form Submission (POST)
             // If the user clicked "Allow" or "Deny" on the Consent View
@@ -118,7 +122,7 @@ namespace IdP.Web.Features.Connect
                         subject: userIdString,
                         client: applicationId,
                         type: AuthorizationTypes.Permanent,
-                        scopes: scopes);
+                        scopes: grantedScopes);
 
                     // Continue execution flow to issue the token...
                 }
@@ -130,7 +134,7 @@ namespace IdP.Web.Features.Connect
                 client: applicationId,
                 status: Statuses.Valid,
                 type: AuthorizationTypes.Permanent,
-                scopes: scopes).ToListAsync();
+                scopes: grantedScopes).ToListAsync();
 
             // 7. Determine Consent Requirements
             var consentType = await _applicationManager.GetConsentTypeAsync(application);
@@ -141,8 +145,8 @@ namespace IdP.Web.Features.Connect
                 return View("~/Features/Connect/Consent.cshtml", new ConsentViewModel
                 {
                     ApplicationName = await _applicationManager.GetDisplayNameAsync(application) ?? "Unknown Application",
-                    Scopes = scopes,
-                    ScopeDescriptions = await GetScopeDescriptions(scopes),
+                    Scopes = grantedScopes,
+                    ScopeDescriptions = await GetScopeDescriptions(grantedScopes),
                     ReturnUrl = Request.PathBase + Request.Path + QueryString.Create(
                             Request.HasFormContentType ? Request.Form.ToList() : Request.Query.ToList())
                 });
@@ -158,13 +162,15 @@ namespace IdP.Web.Features.Connect
             identity.AddClaim(Claims.Name, await _userManager.GetUserNameAsync(user) ?? user.UserName ?? "Unknown User");
             identity.AddClaim(Claims.Email, await _userManager.GetEmailAsync(user) ?? "");
 
-            identity.SetScopes(scopes);
+            identity.SetScopes(grantedScopes);
 
-            var resources = await _scopeManager.ListResourcesAsync(scopes).ToListAsync();
+            // Load resources
+            var resources = await _scopeManager.ListResourcesAsync(grantedScopes).ToListAsync();
             identity.SetResources(resources);
 
             // 9. Inject Permissions (Dynamic based on scopes)
-            var permissions = await GetPermissionsForScopesAsync(user, scopes);
+            //var permissions = await GetPermissionsForScopesAsync(user, scopes);
+            var permissions = await _permissionService.GetPermissionsAsync(user, grantedScopes);
             foreach (var claim in permissions)
             {
                 identity.AddClaim(claim);
@@ -238,6 +244,7 @@ namespace IdP.Web.Features.Connect
                 // If the scope indicates a resource server, we wipe and re-fetch permissions to ensure they are fresh.
                 var grantedScopes = result.Principal.GetScopes();
 
+                // Load resources
                 var resources = await _scopeManager.ListResourcesAsync(grantedScopes).ToListAsync();
                 identity.SetResources(resources);
 
@@ -248,7 +255,8 @@ namespace IdP.Web.Features.Connect
                     foreach (var claim in existingPermissions) identity.RemoveClaim(claim);
 
                     // Fetch new permissions
-                    var freshPermissions = await GetPermissionsForScopesAsync(user, grantedScopes);
+                    //var freshPermissions = await GetPermissionsForScopesAsync(user, grantedScopes);
+                    var freshPermissions = await _permissionService.GetPermissionsAsync(user, grantedScopes);
                     foreach (var claim in freshPermissions)
                     {
                         // Add only if not duplicate
