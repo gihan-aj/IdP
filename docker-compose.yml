@@ -11,7 +11,16 @@ services:
     networks:
       - idp-network
 
-  # 2. YOUR IDENTITY PROVIDER
+ # 2. REDIS (New)
+  redis-cache:
+    image: redis:alpine
+    container_name: idp_redis
+    ports:
+      - "6379:6379" # Expose standard Redis port
+    networks:
+      - idp-network
+
+  # 3. YOUR IDENTITY PROVIDER
   idp-app:
     build:
       context: .
@@ -22,12 +31,14 @@ services:
       - DOTNET_RUNNING_IN_CONTAINER=true
       # IMPORTANT: "Server=sql-db" refers to the service name above!
       - ConnectionStrings__DefaultConnection=Server=sql-db;Database=IdP_DB;User Id=sa;Password=Strong!Passw0rd;TrustServerCertificate=True;
+      - ConnectionStrings__Redis=redis-cache:6379
       # OpenIddict needs to know the URL it is accessed from (localhost:8080)
       - ASPNETCORE_URLS=http://+:80
     ports:
       - "8080:80" # Map Host 8080 -> Container 80
     depends_on:
       - sql-db
+      - redis-cache  
     networks:
       - idp-network
 

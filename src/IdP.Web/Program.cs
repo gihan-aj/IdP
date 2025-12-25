@@ -22,10 +22,6 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("RequireAdminRole", policy => policy.RequireRole("Admin"));
 });
 
-// Cache
-builder.Services.AddDistributedMemoryCache();
-builder.Services.AddScoped<IPermissionService, PermissionService>();
-
 // Database
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -34,6 +30,23 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
     // Register the entity sets needed by OpenIddict.
     options.UseOpenIddict();
 });
+
+// Cache
+var redisConnectionString = builder.Configuration.GetConnectionString("Redis");
+if (!string.IsNullOrEmpty(redisConnectionString))
+{
+    builder.Services.AddStackExchangeRedisCache(options =>
+    {
+        options.Configuration = redisConnectionString;
+        options.InstanceName = "IdP:"; // Prefixes all keys in Redis so they don't clash with other apps
+    });
+}
+else
+{
+    builder.Services.AddDistributedMemoryCache();
+}
+
+builder.Services.AddScoped<IPermissionService, PermissionService>();
 
 // Background Worker (Seeder)
 builder.Services.AddHostedService<ClientSeederWorker>();
@@ -86,9 +99,6 @@ builder.Services.AddOpenIddict()
     // B. Server: Handle the OIDC Protocol
     .AddServer(options =>
     {
-        options.SetAccessTokenLifetime(TimeSpan.FromMinutes(5));
-        options.SetRefreshTokenLifetime(TimeSpan.FromDays(14));
-
         // 1. Define the endpoints (matches ConnectController routes)
         options.SetAuthorizationEndpointUris("/connect/authorize")
                .SetTokenEndpointUris("/connect/token")
@@ -106,6 +116,9 @@ builder.Services.AddOpenIddict()
             OpenIddictConstants.Scopes.Profile,
             OpenIddictConstants.Scopes.Roles,
             OpenIddictConstants.Scopes.OfflineAccess);
+
+        options.SetAccessTokenLifetime(TimeSpan.FromMinutes(5));
+        options.SetRefreshTokenLifetime(TimeSpan.FromDays(14));
 
         // 4. Security (Dev only: Ephemeral keys)
         // IN PRODUCTION: Use .AddEncryptionCertificate() and .AddSigningCertificate()
