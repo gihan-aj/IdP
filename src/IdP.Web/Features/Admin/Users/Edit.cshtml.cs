@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using IdP.Web.Infrastructure.Data;
+using IdP.Web.Infrastructure.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -11,11 +12,13 @@ namespace IdP.Web.Features.Admin.Users
     {
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly RoleManager<IdentityRole> _roleManager;
+        private readonly IPermissionService _permissionService;
 
-        public EditModel(RoleManager<IdentityRole> roleManager, UserManager<ApplicationUser> userManager)
+        public EditModel(RoleManager<IdentityRole> roleManager, UserManager<ApplicationUser> userManager, IPermissionService permissionService)
         {
             _roleManager = roleManager;
             _userManager = userManager;
+            _permissionService = permissionService;
         }
 
         [BindProperty]
@@ -117,6 +120,7 @@ namespace IdP.Web.Features.Admin.Users
             if (toAdd.Any() || toRemove.Any())
             {
                 await _userManager.UpdateSecurityStampAsync(user);
+                await _permissionService.InvalidateCacheAsync(user.Id);
             }
 
             return RedirectToPage("Index");

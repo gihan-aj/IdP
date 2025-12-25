@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using IdP.Web.Infrastructure.Data;
+using IdP.Web.Infrastructure.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -12,15 +13,18 @@ namespace IdP.Web.Features.Admin.Roles
         private readonly RoleManager<IdentityRole> _roleManager;
         private readonly ApplicationDbContext _dbContext;
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly IPermissionService _permissionService;
 
         public EditModel(
-            RoleManager<IdentityRole> roleManager, 
-            ApplicationDbContext dbContext, 
-            UserManager<ApplicationUser> userManager)
+            RoleManager<IdentityRole> roleManager,
+            ApplicationDbContext dbContext,
+            UserManager<ApplicationUser> userManager,
+            IPermissionService permissionService)
         {
             _roleManager = roleManager;
             _dbContext = dbContext;
             _userManager = userManager;
+            _permissionService = permissionService;
         }
 
         [BindProperty]
@@ -76,11 +80,15 @@ namespace IdP.Web.Features.Admin.Roles
             var role = await _roleManager.FindByIdAsync(Input.RoleId);
             if (role == null) return NotFound();
 
+            bool permissionChanged = false;
+
             // Update name
             if(role.Name != Input.RoleName)
             {
                 role.Name = Input.RoleName;
                 await _roleManager.UpdateAsync(role);
+
+                permissionChanged = true;
             }
 
             // Update permisions
@@ -98,6 +106,8 @@ namespace IdP.Web.Features.Admin.Roles
             // Validation: prevent modifying own permissions
             if(toAdd.Any() || toRemove.Any())
             {
+                permissionChanged = true;
+
                 var currentUser = await _userManager.GetUserAsync(User);
                 if (currentUser is not null)
                 {
@@ -123,6 +133,15 @@ namespace IdP.Web.Features.Admin.Roles
                 if (claimToRemove != null)
                 {
                     await _roleManager.RemoveClaimAsync(role, claimToRemove);
+                }
+            }
+
+            if (permissionChanged)
+            {
+                var usersInRole = await _userManager.GetUsersInRoleAsync(role.Name);
+                foreach(var user in usersInRole)
+                {
+                    await _permissionService.InvalidateCacheAsync(user.Id);
                 }
             }
 

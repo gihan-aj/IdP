@@ -1,6 +1,6 @@
-using IdP.Web.Features.Connect.Services;
 using IdP.Web.Infrastructure;
 using IdP.Web.Infrastructure.Data;
+using IdP.Web.Infrastructure.Services;
 using IdP.Web.Infrastructure.Worker;
 using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.AspNetCore.Identity;

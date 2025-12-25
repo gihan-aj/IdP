@@ -1,7 +1,6 @@
-﻿using System.Collections.Immutable;
-using System.Security.Claims;
-using IdP.Web.Features.Connect.Services;
+﻿using System.Security.Claims;
 using IdP.Web.Infrastructure.Data;
+using IdP.Web.Infrastructure.Services;
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
